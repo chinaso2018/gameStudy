@@ -7,8 +7,15 @@
       <img class="logo pushReleaseFrom" src="/images/logo.png" />
     </div>
     <div class="bottom">
-      <div class="playButton pepe">
-        <img src="/images/playgame.png" />
+      <div
+        class="playButton pepe"
+        :class="{ active: isActive }"
+        @touchstart="pressIn"
+        @mousedown="pressIn"
+        @mouseup="pressOut"
+        @touchend="pressOut"
+      >
+        <img src="/images/playgame.png" class="playIcon" />
       </div>
     </div>
   </div>
@@ -16,7 +23,20 @@
 
 <script>
 export default {
-  name: 'Home'
+  name: 'Home',
+  data () {
+    return {
+      isActive: false
+    }
+  },
+  methods: {
+    pressIn () {
+      this.isActive = true
+    },
+    pressOut () {
+      this.$router.push({ path: '/puzzle' })
+    }
+  }
 }
 </script>
 <style scoped>
@@ -25,6 +45,9 @@ export default {
   height: 100%;
   position: relative;
   overflow: hidden;
+  background-image: url('../assets/back3.jpeg');
+  background-size:100% 100%;
+  background-repeat: no-repeat;
 }
 .logoContainer {
   width: 100%;
@@ -32,6 +55,10 @@ export default {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+}
+.playIcon {
+  width: 80%;
+  height: auto;
 }
 .logo {
   width: 80%;
@@ -47,93 +74,18 @@ export default {
 .playButton {
   width: 200px;
   height: 80px;
-  background: #ffffff;
-  border-radius: 100px;
-  animation:  pepe 2s ease-in-out infinite;
+  background-color: #6aa1ec;
+  border-radius: 40px;
+  animation: pepe 2s ease-in-out infinite;
   margin: 0 auto;
   filter: drop-shadow(8px 8px 10px rgba(0, 0, 0, 0.3));
-  color: #333333;
-  font-size: 30px;
-  line-height: 80px;
-  text-align: center;
-  color: #1144aa;
   display: flex;
   justify-content: center;
   align-items: center;
 }
-.playButton:after,
-.playButton:before {
-  content: '';
-  position: absolute;
-  background: #ffffff;
-  z-index: -1;
-}
-.playButton:after {
-  width: 60px;
-  height: 64px;
-  top: -23px;
-  left: 26px;
-  border-radius: 40px;
-}
-.playButton:before {
-  width: 118px;
-  height: 114px;
-  top: -40px;
-  left: 64px;
-  border-radius: 98px;
-}
-.shadow {
-  width: 350px;
-  position: absolute;
-  bottom: -25px;
-  background: #000;
-  -webkit-animation: scalex 3s ease-in-out infinite;
-  animation: scalex 3s ease-in-out infinite;
-  box-shadow: 0 0 25px 8px rgba(0, 0, 0, 0.4);
-}
-@-webkit-keyframes Floating {
-  from {
-    -moz-transform: translate(0, 0px);
-  }
-  65% {
-    -moz-transform: translate(0, 15px);
-  }
-  to {
-    -moz-transform: translate(0, 0px);
-  }
-}
-@keyframes Floating {
-  from {
-    -moz-transform: translate(0, 0px);
-  }
-  65% {
-    -moz-transform: translate(0, 15px);
-  }
-  to {
-    -moz-transform: translate(0, 0px);
-  }
-}
-@-webkit-keyframes Floatingx {
-  from {
-    -webkit-transform: translate(0, 0px);
-  }
-  65% {
-    -webkit-transform: translate(0, 15px);
-  }
-  to {
-    -webkit-transform: translate(0, 0px);
-  }
-}
-@-webkit-keyframes scalex {
-  from {
-    -webkit-transform: scale(0.9);
-  }
-  65% {
-    -webkit-transform: scale(1);
-  }
-  to {
-    -webkit-transform: scale(0.9);
-  }
+.playButton.active {
+  animation: none;
+  transform: scale(0.8);
 }
 .cloud {
   width: 200px;
@@ -193,13 +145,17 @@ export default {
     left: 500px;
   }
 }
-.pushReleaseFrom { animation: pushReleaseFrom 2s 0.5s ease-in-out;}
+.pushReleaseFrom {
+  animation: pushReleaseFrom 2s 0.5s ease-in-out;
+}
 @keyframes pushReleaseFrom {
-    from {
-        transform: scale(3, 3);
-        opacity: 0;
-    }
-    30% { transform: scale(.5, .5) }
+  from {
+    transform: scale(3, 3);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(0.5, 0.5);
+  }
 }
 .hu__hu__ {
   animation: hu__hu__ infinite 2s ease-in-out;

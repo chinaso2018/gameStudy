@@ -9,9 +9,10 @@
 html,body{
   height:100%
 }
+div{
+  box-sizing: border-box;
+}
 body{
-  background-image: url('./assets/back3.jpeg');
-  background-size:100% 100%;
-  background-repeat: no-repeat;
+  background-color: rgb(117, 162, 230);
 }
 </style>
