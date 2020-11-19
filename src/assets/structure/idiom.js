@@ -1,8 +1,21 @@
 import * as PIXI from 'pixi.js'
+import { TweenMax, TimelineMax } from 'gsap'
 const CARD_WIDTH = 50
 const CARD_HEIGHT = 50
 const CLOCK_WIDTH = 100
 const CLOCK_HEIGHT = 50
+const arrayShuffle = (arr, num = 1) => {
+  const randomNumber = function() {
+    // randomNumber(a,b) 返回的值大于 0 ，则 b 在 a 的前边；
+    // randomNumber(a,b) 返回的值等于 0 ，则a 、b 位置保持不变；
+    // randomNumber(a,b) 返回的值小于 0 ，则 a 在 b 的前边。
+    return 0.5 - Math.random()
+  }
+  for (let i = 0; i < num; i++) {
+    arr.sort(randomNumber)
+  }
+  return arr
+}
 class FontCard {
   constructor({ name, x, y, texture, errorTexture, answer, canChange }) {
     this.texture = texture
@@ -11,6 +24,7 @@ class FontCard {
     this.spirit = new PIXI.Sprite(texture)
     this.spirit.width = CARD_WIDTH
     this.spirit.height = CARD_HEIGHT
+    this.spirit.anchor.set(0.5)
     this.spirit.position.set(x, y)
     this._error = false
     this._name = ''
@@ -28,10 +42,7 @@ class FontCard {
       align: 'center'
     })
     font.anchor.set(0.5)
-    font.position.set(
-      (CARD_WIDTH / 2) * window.devicePixelRatio,
-      (CARD_HEIGHT / 2) * window.devicePixelRatio
-    )
+    font.position.set(0, 0)
     this.spirit.addChild(font)
   }
   get name() {
@@ -68,23 +79,69 @@ class FontCard {
   }
 }
 class MatchCard {
-  constructor({ name, x, y }) {
-    this.graphic = new PIXI.Graphics()
-    this.graphic.lineStyle(2, 0x666666, 1, 0)
-    this.graphic.beginFill(0xffffff)
-    this.graphic.drawRect(x, y, CARD_WIDTH, CARD_HEIGHT)
-    this.graphic.endFill()
-    this.graphic.interactive = true
-    this.graphic.on('pointerdown', this.onDragStart)
-    this.graphic.on('pointerup', this.onDragEnd)
-    this.graphic.on('pointerupoutside', this.onDragEnd)
-    this.graphic.on('pointermove', this.onDragMove)
+  constructor({ name, x, y, texture }) {
+    this.texture = texture
+    this.position = { x, y }
+    this.spirit = new PIXI.Sprite(texture)
+    this.spirit.width = CARD_WIDTH
+    this.spirit.height = CARD_HEIGHT
+    this.spirit.anchor.set(0.5)
+    this.spirit.position.set(x, y)
+    this.name = name
+    this.createFont(this.name)
+    this.spirit.interactive = true
+    this.spirit.buttonMode = true
+    this.spirit
+      .on('pointerdown', this.onDragStart.bind(this))
+      .on('pointerup', this.onDragEnd.bind(this))
+      .on('pointerupoutside', this.onDragEnd.bind(this))
+      .on('pointermove', this.onDragMove.bind(this))
+  }
+  get x() {
+    return this.position.x
+  }
+  get y() {
+    return this.position.y
+  }
+  set x(value) {
+    this.position.x = value
+    this.spirit.x = value
+  }
+  set y(value) {
+    this.position.y = value
+    this.spirit.y = value
+  }
+  createFont(value) {
+    const font = new PIXI.Text(value, {
+      fontSize: (CARD_WIDTH / 2) * window.devicePixelRatio,
+      fill: 0x333333,
+      align: 'center'
+    })
+    font.anchor.set(0.5)
+    font.position.set(0, 0)
+    this.spirit.addChild(font)
   }
   onDragStart(event) {
-    console.log(event, this)
+    this.data = event.data
+    this.spirit.alpha = 0.5
+    this.dragging = true
   }
-  onDragEnd() {}
-  onDragMove(event) {}
+  onDragEnd() {
+    this.data = null
+    this.dragging = false
+    this.spirit.alpha = 1
+    TweenMax.to(this.spirit, 0.3, { x: this.position.x, y: this.position.y })
+  }
+  onDragMove() {
+    if (this.dragging) {
+      const newPosition = this.data.getLocalPosition(this.spirit.parent)
+      this.spirit.position.set(newPosition.x, newPosition.y)
+    }
+  }
+
+  destroy() {
+    this.spirit.destroy()
+  }
 }
 class Clock {
   /**
@@ -173,6 +230,7 @@ class IdiomGame {
     this.tableHeight = this.canvasHeight / 3
     this.resultStartY = (this.tableHeight - CARD_HEIGHT) / 2
     this.difficulty = difficulty
+    this.timeout = difficulty * 60
     this.spirits = {}
     this.init()
   }
@@ -227,22 +285,38 @@ class IdiomGame {
     graphic4.endFill()
     this.spirits.clockTimeoutTexture = this.render.generateTexture(graphic4)
   }
-  grid(num) {
+  createLine(num, y = 0) {
     const rlt = []
     const clip = this.canvasWidth / num
     for (let i = 0; i < num; i++) {
       rlt.push({
-        x: (i + 0.5) * clip - 0.5 * CARD_WIDTH,
-        y: 0
+        x: (i + 0.5) * clip,
+        y: y
       })
+    }
+    return rlt
+  }
+  /**
+   * 创建网格
+   * @param {*} row
+   * @param {*} col
+   */
+  createGrid(row, col) {
+    const rlt = []
+    for (let i = 0; i < row; i++) {
+      rlt.push(this.createLine(col, i * (CARD_HEIGHT + 20)))
     }
     return rlt
   }
   init() {
     this.resultContainer = new PIXI.Container()
+    this.matchContainer = new PIXI.Container()
     this.stage.addChild(this.resultContainer)
+    this.stage.addChild(this.matchContainer)
     this.resultContainer.y = this.resultStartY
+    this.matchContainer.y = this.tableHeight + CLOCK_HEIGHT + 20
     this.resultCards = []
+    this.matchCards = []
   }
   clear() {
     if (this.resultCards.length > 0) {
@@ -252,22 +326,23 @@ class IdiomGame {
     this.resultContainer.children.length > 0 &&
       this.resultContainer.removeChildren(0)
 
+    if (this.matchCards.length > 0) {
+      this.matchCards.forEach(item => item.destroy())
+      this.matchCards = []
+    }
+    this.matchContainer.children.length > 0 &&
+      this.matchContainer.removeChildren(0)
+
     this.clock && this.clock.destroy()
   }
   createShowMap(len) {
     if (this.difficulty == 4) return {}
-    const rand = []
+    let rand = []
     for (let i = 0; i < len; i++) {
       rand.push(i)
     }
-    const randomNumber = function() {
-      // randomNumber(a,b) 返回的值大于 0 ，则 b 在 a 的前边；
-      // randomNumber(a,b) 返回的值等于 0 ，则a 、b 位置保持不变；
-      // randomNumber(a,b) 返回的值小于 0 ，则 a 在 b 的前边。
-      return 0.5 - Math.random()
-    }
     const map = {}
-    rand.sort(randomNumber)
+    rand = arrayShuffle(rand, 2)
     const showNum = len - this.difficulty
     rand.slice(0, showNum).forEach(item => {
       map[item] = true
@@ -296,7 +371,7 @@ class IdiomGame {
     bottom.position.set(0, this.tableHeight)
     this.stage.addChild(bottom)
     this.clock = new Clock({
-      time: 60,
+      time: this.timeout,
       texture1: this.spirits.clockTexture,
       texture2: this.spirits.clockTimeoutTexture,
       x: this.canvasWidth / 2,
@@ -306,15 +381,42 @@ class IdiomGame {
     })
     this.stage.addChild(this.clock.spirit)
   }
+  getRandomWords() {
+    let randomWords = [
+      '好',
+      '好',
+      '好',
+      '好',
+      '好',
+      '好',
+      '好',
+      '好',
+      '好',
+      '好',
+      '好',
+      '好'
+    ]
+    randomWords = randomWords.slice(0, 12 - this.difficulty)
+    return randomWords
+  }
   start(word) {
     if (typeof word !== 'string' || !word) return
     this.clear()
+    //创建时钟
+    this.createClock()
+    //获取随机汉字
+    let randomWords = this.getRandomWords()
+
+    //创建题目
     const words = word.split('')
     const len = words.length
-    const resultClips = this.grid(len)
+    const resultClips = this.createLine(len)
     const showMap = this.createShowMap(len)
-    this.createClock()
+
     for (let i = 0; i < len; i++) {
+      if (!showMap[i]) {
+        randomWords.push(words[i])
+      }
       let fontCard = new FontCard({
         ...resultClips[i],
         name: showMap[i] ? words[i] : '',
@@ -326,7 +428,66 @@ class IdiomGame {
       this.resultCards.push(fontCard)
       this.resultContainer.addChild(fontCard.spirit)
     }
-    this.clock.start()
+    //创建答案
+    const matchGrids = this.createGrid(3, 4)
+    const fromPositions = this.getFirstPostions(randomWords.length)
+    console.log(fromPositions)
+    randomWords = arrayShuffle(randomWords, 3)
+    for (let i = 0; i < randomWords.length; i++) {
+      let matchCard = new MatchCard({
+        //...matchGrids[Math.floor(i / 4)][i % 4],
+        ...fromPositions[i],
+        name: randomWords[i],
+        texture: this.spirits.cardTexture
+      })
+      this.matchCards.push(matchCard)
+      this.matchContainer.addChild(matchCard.spirit)
+    }
+    this.timeline = new TimelineMax()
+    this.timeline.staggerTo(
+      this.matchCards,
+      0.5,
+      {
+        x: function(index) {
+          return matchGrids[Math.floor(index / 4)][index % 4].x
+        },
+        y: function(index) {
+          return matchGrids[Math.floor(index / 4)][index % 4].y
+        }
+      },
+      0.2,
+      '+=0',
+      () => {
+        //开始计时
+        this.clock.start()
+      }
+    )
+  }
+  getFirstPostions(len) {
+    const y = 3 * (CARD_HEIGHT + 20)
+    const centerX = this.canvasWidth / 2
+    const middle = (len - 1) / 2
+    const middleIndex = Math.floor(middle)
+    const rlt = []
+    for (let i = 0; i < middle; i++) {
+      rlt.push({
+        x: centerX - (middle - i) * 5,
+        y: y
+      })
+    }
+    if (middle % 1 == 0) {
+      rlt.push({
+        x: centerX,
+        y: y
+      })
+    }
+    for (let i = middleIndex + 1; i < len; i++) {
+      rlt.push({
+        x: centerX + (i - middle) * 5,
+        y: y
+      })
+    }
+    return rlt
   }
 }
 export default IdiomGame
