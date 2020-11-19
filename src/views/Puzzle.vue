@@ -1,33 +1,37 @@
 <template>
   <div class="container">
     <div class="header">
-      <font-awesome-icon icon="arrow-alt-circle-left" class="backButton" />
-      <div class="headerRight">
-        <font-awesome-icon icon="question-circle" class="backButton mR20" />
+      <font-awesome-icon icon="arrow-alt-circle-left" class="backButton" @click="goBack"/>
+      <div class="headerRight" v-show="!isLoading">
+        <font-awesome-icon icon="question-circle" class="backButton mR20" @click="gameTip"/>
         <div class="circle">
-          <font-awesome-icon icon="undo-alt" class="icon" />
+          <font-awesome-icon icon="undo-alt" class="icon"  @click="newGame"/>
         </div>
       </div>
     </div>
     <canvas
       class="myCanvas"
       id="canvasDom"
-      :style="{ height: canvasHeight + 'px' }"
+      :style="{ height: canvasHeight + 'px',width:canvasWidth+'px' }"
     />
+    <div v-show="isLoading" class="loading">加载中...</div>
   </div>
 </template>
 
 <script>
-import * as PIXI from 'pixi.js'
+import Game from '@/assets/structure/idiom'
 export default {
   name: 'Puzzle',
-  data () {
+  data() {
     return {
       canvasHeight: 0,
-      canvasWidth: 0
+      canvasWidth: 0,
+      list:['一心一意','三心二意','守株待兔'],
+      index:0,
+      isLoading:true
     }
   },
-  beforeMount () {
+  beforeMount() {
     const windowHeight =
       document.documentElement.clientHeight || document.body.clientHeight
     const windowWidth =
@@ -35,27 +39,32 @@ export default {
     this.canvasHeight = windowHeight - 50
     this.canvasWidth = windowWidth
   },
-  mounted () {
+  mounted() {
     this.init()
   },
   methods: {
-    init () {
-      const canvasDom = document.getElementById('canvasDom')
-      this.pixiApp = new PIXI.Application({
-        view: canvasDom,
-        antialias: true,
-        backgroundColor: 0x75a2e6,
-        resolution: window.devicePixelRatio,
-        width:this.canvasWidth,
-        height:this.canvasHeight
-      })
-      const graphics = new PIXI.Graphics()
+    gameTip(){
 
-      // Rectangle
-      graphics.beginFill(0xde3249)
-      graphics.drawRect(50, 50, 100, 100)
-      graphics.endFill()
-      this.pixiApp.stage.addChild(graphics)
+    },
+    newGame(){
+      this.index = (this.index+1)%this.list.length
+      this.game.start(this.list[this.index])
+    },
+    goBack(){
+      this.$router.go(-1)
+    },
+    init() {
+      const canvasDom = document.getElementById('canvasDom')
+      this.game = new Game({
+        canvas:canvasDom,
+        canvasHeight:this.canvasHeight,
+        canvasWidth:this.canvasWidth,
+        difficulty:2
+      })
+      this.game.load().then(()=>{
+        this.isLoading = false
+        this.game.start(this.list[this.index])
+      })
     }
   }
 }
@@ -110,6 +119,14 @@ export default {
   position: absolute;
   top: 50px;
   left: 0;
-  width: 100%;
+}
+.loading{
+  position: absolute;
+  top:50%;
+  left:50%;
+  transform: translate(-50%,-50%);
+  color:#ffffff;
+  font-size: 40px;
+  font-weight: bold;
 }
 </style>
