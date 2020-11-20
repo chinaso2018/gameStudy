@@ -16,17 +16,18 @@ const arrayShuffle = (arr, num = 1) => {
   }
   return arr
 }
+
 class FontCard {
-  constructor({ name, x, y, texture, errorTexture, answer, canChange }) {
+  constructor({ name, x, y, texture, activeTexture, answer, canChange }) {
     this.texture = texture
     this.position = { x: x, y: y }
-    this.errorTexture = errorTexture
+    this.activeTexture = activeTexture
     this.spirit = new PIXI.Sprite(texture)
     this.spirit.width = CARD_WIDTH
     this.spirit.height = CARD_HEIGHT
     this.spirit.anchor.set(0.5)
     this.spirit.position.set(x, y)
-    this._error = false
+    this._active = false
     this._name = ''
     this.name = name
     this.answer = answer
@@ -35,15 +36,28 @@ class FontCard {
       this.createFont(this.answer)
     }
   }
+  get match() {
+    return this.name == this.answer
+  }
+  set match(value) {
+    if (value) {
+      this.name = this.answer
+      this.canChange = false
+    }
+  }
   createFont(value) {
-    const font = new PIXI.Text(value, {
+    if (this.font) {
+      this.font.text = value
+      return
+    }
+    this.font = new PIXI.Text(value, {
       fontSize: (CARD_WIDTH / 2) * window.devicePixelRatio,
       fill: 0x333333,
       align: 'center'
     })
-    font.anchor.set(0.5)
-    font.position.set(0, 0)
-    this.spirit.addChild(font)
+    this.font.anchor.set(0.5)
+    this.font.position.set(0, 0)
+    this.spirit.addChild(this.font)
   }
   get name() {
     return this._name
@@ -56,30 +70,29 @@ class FontCard {
       }
       //如果是替换
       if (value) {
-        this.spirit.removeChildren(0)
         this.createFont(value)
       }
 
       this._name = value
     }
   }
-  get error() {
-    return this._error
+  get active() {
+    return this._active
   }
-  set error(value) {
+  set active(value) {
     if (!this.canChange) return
     value = !!value
-    if (value != this._error) {
-      this.spirit.texture = value ? this.selectedTexture : this.texture
+    if (value != this._active) {
+      this.spirit.texture = value ? this.activeTexture : this.texture
     }
-    this._error = value
+    this._active = value
   }
   destroy() {
     this.spirit.destroy()
   }
 }
 class MatchCard {
-  constructor({ name, x, y, texture }) {
+  constructor({ name, x, y, texture, onMatched, onMatching }) {
     this.texture = texture
     this.position = { x, y }
     this.spirit = new PIXI.Sprite(texture)
@@ -96,6 +109,9 @@ class MatchCard {
       .on('pointerup', this.onDragEnd.bind(this))
       .on('pointerupoutside', this.onDragEnd.bind(this))
       .on('pointermove', this.onDragMove.bind(this))
+    this.isMatched = false
+    this.onMatched = onMatched
+    this.onMatching = onMatching
   }
   get x() {
     return this.position.x
@@ -123,19 +139,27 @@ class MatchCard {
   }
   onDragStart(event) {
     this.data = event.data
-    this.spirit.alpha = 0.5
+    this.spirit.alpha = 0.8
     this.dragging = true
   }
   onDragEnd() {
     this.data = null
     this.dragging = false
     this.spirit.alpha = 1
-    TweenMax.to(this.spirit, 0.3, { x: this.position.x, y: this.position.y })
+    if (this.isMatched) {
+      this.spirit.visible = false
+    } else {
+      TweenMax.to(this.spirit, 0.3, { x: this.position.x, y: this.position.y })
+    }
+    typeof this.onMatched == 'function' && this.onMatched(this.isMatched)
   }
   onDragMove() {
     if (this.dragging) {
       const newPosition = this.data.getLocalPosition(this.spirit.parent)
       this.spirit.position.set(newPosition.x, newPosition.y)
+      if (typeof this.onMatching == 'function') {
+        this.isMatched = this.onMatching(this.data.global, this.name)
+      }
     }
   }
 
@@ -148,11 +172,12 @@ class Clock {
    *
    * @param {number} time 总计时 单位：秒
    */
-  constructor({ time, texture1, texture2, x, y, width, height }) {
+  constructor({ time, texture1, texture2, x, y, width, height, onTimeout }) {
     this.time = time * 1000
     this.position = { x, y }
     this.texture1 = texture1
     this.texture2 = texture2
+    this.onTimeout = onTimeout
     //背景纹理
     this.spirit = new PIXI.Sprite(texture1)
     this.spirit.width = width
@@ -195,6 +220,7 @@ class Clock {
     //结束
     if (this.time == 0) {
       this.stop()
+      typeof this.onTimeout == 'function' && this.onTimeout()
     }
   }
   start() {
@@ -211,10 +237,21 @@ class Clock {
   }
 }
 class IdiomGame {
-  constructor({ canvas, canvasWidth, canvasHeight, difficulty }) {
+  constructor({
+    canvas,
+    canvasWidth,
+    canvasHeight,
+    difficulty,
+    onEnd,
+    onTimeout,
+    onStart
+  }) {
     this.canvas = canvas
     this.canvasWidth = canvasWidth
     this.canvasHeight = canvasHeight
+    this.onEnd = onEnd
+    this.onTimeout = onTimeout
+    this.onStart = onStart
     this.pixiApp = new PIXI.Application({
       view: canvas,
       antialias: true,
@@ -319,6 +356,7 @@ class IdiomGame {
     this.matchCards = []
   }
   clear() {
+    this.timeline && this.timeline.kill()
     if (this.resultCards.length > 0) {
       this.resultCards.forEach(item => item.destroy())
       this.resultCards = []
@@ -377,7 +415,10 @@ class IdiomGame {
       x: this.canvasWidth / 2,
       y: this.tableHeight,
       width: CLOCK_WIDTH,
-      height: CLOCK_HEIGHT
+      height: CLOCK_HEIGHT,
+      onTimeout: () => {
+        typeof this.onTimeout == 'function' && this.onTimeout()
+      }
     })
     this.stage.addChild(this.clock.spirit)
   }
@@ -423,7 +464,7 @@ class IdiomGame {
         canChange: !showMap[i],
         answer: words[i],
         texture: this.spirits.cardTexture,
-        errorTexture: this.spirits.cardErrorTexture
+        activeTexture: this.spirits.cardErrorTexture
       })
       this.resultCards.push(fontCard)
       this.resultContainer.addChild(fontCard.spirit)
@@ -431,18 +472,46 @@ class IdiomGame {
     //创建答案
     const matchGrids = this.createGrid(3, 4)
     const fromPositions = this.getFirstPostions(randomWords.length)
-    console.log(fromPositions)
     randomWords = arrayShuffle(randomWords, 3)
     for (let i = 0; i < randomWords.length; i++) {
       let matchCard = new MatchCard({
-        //...matchGrids[Math.floor(i / 4)][i % 4],
         ...fromPositions[i],
         name: randomWords[i],
-        texture: this.spirits.cardTexture
+        texture: this.spirits.cardTexture,
+        onMatching: (centerPoint, name) => {
+          const activeItem = this.resultCards.filter(item => item.canChange)
+          let flag = false
+          if (activeItem.length > 0) {
+            for (let i = 0; i < activeItem.length; i++) {
+              if (
+                activeItem[i].spirit
+                  .getBounds()
+                  .contains(centerPoint.x, centerPoint.y)
+              ) {
+                activeItem[i].active = true
+                this.activeResult = activeItem[i]
+                if (activeItem[i].answer == name) {
+                  flag = true
+                }
+              } else {
+                activeItem[i].active = false
+              }
+            }
+          }
+          return flag
+        },
+        onMatched: matched => {
+          this.activeResult.active = false
+          if (matched) {
+            this.activeResult.match = true
+            this.tryComplete()
+          }
+        }
       })
       this.matchCards.push(matchCard)
       this.matchContainer.addChild(matchCard.spirit)
     }
+    //创建开始动画
     this.timeline = new TimelineMax()
     this.timeline.staggerTo(
       this.matchCards,
@@ -488,6 +557,31 @@ class IdiomGame {
       })
     }
     return rlt
+  }
+  isComplete() {
+    return this.resultCards.every(item => !item.canChange)
+  }
+  tryComplete() {
+    if (this.isComplete()) {
+      this.clock.stop()
+      typeof this.onEnd == 'function' && this.onEnd()
+    }
+  }
+  /**
+   * 获取提示
+   */
+  getTip() {
+    const answerCard = this.resultCards.find(item => item.canChange)
+    if (!answerCard) return
+    const answer = answerCard.answer
+    const matchCard = this.matchCards.find(item => item.name == answer)
+    if (!matchCard) return
+    TweenMax.to(matchCard.spirit.scale, 0.2, {
+      x: 1.05,
+      y: 1.05,
+      repeat: 1,
+      yoyo: true
+    })
   }
 }
 export default IdiomGame

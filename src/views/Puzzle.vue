@@ -1,34 +1,61 @@
 <template>
   <div class="container">
     <div class="header">
-      <font-awesome-icon icon="arrow-alt-circle-left" class="backButton" @click="goBack"/>
-      <div class="headerRight" v-show="!isLoading">
-        <font-awesome-icon icon="question-circle" class="backButton mR20" @click="gameTip"/>
+      <font-awesome-icon
+        icon="arrow-alt-circle-left"
+        class="backButton"
+        @click="goBack"
+      />
+      <div class="headerRight" v-show="status == 1">
+        <font-awesome-icon
+          icon="question-circle"
+          class="backButton mR20"
+          @click="gameTip"
+        />
         <div class="circle">
-          <font-awesome-icon icon="undo-alt" class="icon"  @click="newGame"/>
+          <font-awesome-icon icon="undo-alt" class="icon" @click="newGame" />
         </div>
       </div>
     </div>
     <canvas
       class="myCanvas"
       id="canvasDom"
-      :style="{ height: canvasHeight + 'px',width:canvasWidth+'px' }"
+      :style="{ height: canvasHeight + 'px', width: canvasWidth + 'px' }"
     />
-    <div v-show="isLoading" class="loading">加载中...</div>
+    <div
+      class="mask fadeIn"
+      :style="{ height: canvasHeight + 'px', width: canvasWidth + 'px' }"
+      v-if="showModal"
+    >
+      <div v-if="status == 0" class="loading">加载中...</div>
+      <div v-if="status == 2" class="loading">游戏结束</div>
+      <div v-if="status == 3" class="loading">游戏超时</div>
+      <div v-if="status == 2||status ==3" class="endButtons">
+        <CButton text="首页" @onClick="goBack"/>
+        <CButton text="新游戏" @onClick="newGame"/>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import Game from '@/assets/structure/idiom'
+import CButton from '@/components/CButton'
 export default {
+  components:{CButton},
   name: 'Puzzle',
   data() {
     return {
       canvasHeight: 0,
       canvasWidth: 0,
-      list:['一心一意','三心二意','守株待兔'],
-      index:0,
-      isLoading:true
+      list: ['一心一意', '三心二意', '守株待兔'],
+      index: 0,
+      status: 0 //0 准备 1 开始 2 结束 3超时
+    }
+  },
+  computed: {
+    showModal() {
+      return this.status == 0 || this.status == 2 || this.status == 3
     }
   },
   beforeMount() {
@@ -43,27 +70,34 @@ export default {
     this.init()
   },
   methods: {
-    gameTip(){
-
+    gameTip() {
+      this.game && this.game.getTip()
     },
-    newGame(){
-      this.index = (this.index+1)%this.list.length
+    newGame() {
+      this.index = (this.index + 1) % this.list.length
       this.game.start(this.list[this.index])
+      this.status = 1
     },
-    goBack(){
+    goBack() {
       this.$router.go(-1)
     },
     init() {
       const canvasDom = document.getElementById('canvasDom')
       this.game = new Game({
-        canvas:canvasDom,
-        canvasHeight:this.canvasHeight,
-        canvasWidth:this.canvasWidth,
-        difficulty:2
+        canvas: canvasDom,
+        canvasHeight: this.canvasHeight,
+        canvasWidth: this.canvasWidth,
+        difficulty: 2,
+        onTimeout: () => {
+          this.status = 3
+        },
+        onEnd: () => {
+          this.status = 2
+        }
       })
-      this.game.load().then(()=>{
-        this.isLoading = false
+      this.game.load().then(() => {
         this.game.start(this.list[this.index])
+        this.status = 1
       })
     }
   }
@@ -120,13 +154,27 @@ export default {
   top: 50px;
   left: 0;
 }
-.loading{
-  position: absolute;
-  top:50%;
-  left:50%;
-  transform: translate(-50%,-50%);
-  color:#ffffff;
-  font-size: 40px;
+.mask {
+  position: fixed;
+  top: 50px;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.7);
+}
+.endButtons{
+  display: flex;
+  flex-direction: row;
+  width: 80%;
+  justify-content: space-between;
+  align-items: center;
+}
+.loading {
+  color: #ffffff;
+  font-size: 30px;
   font-weight: bold;
+  margin-bottom: 30px;
 }
 </style>
