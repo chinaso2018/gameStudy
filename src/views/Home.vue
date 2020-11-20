@@ -18,15 +18,26 @@
         <img src="/images/playgame.png" class="playIcon" />
       </div>
     </div>
+    <div class="mask fadeIn" v-show="chooseOption">
+        <div class="options">
+          <CButton text="简单"  @onClick="goPuzzle(1)"/>
+          <CButton text="普通"  @onClick="goPuzzle(2)"/>
+          <CButton text="困难"  @onClick="goPuzzle(3)"/>
+          <CButton text="变态"  @onClick="goPuzzle(4)"/>
+        </div>
+    </div>
   </div>
 </template>
 
 <script>
+import CButton from '@/components/CButton'
 export default {
+  components:{CButton},
   name: 'Home',
   data () {
     return {
-      isActive: false
+      isActive: false,
+      chooseOption:false
     }
   },
   methods: {
@@ -34,6 +45,10 @@ export default {
       this.isActive = true
     },
     pressOut () {
+      this.isActive = false
+      this.chooseOption = true
+    },
+    goPuzzle(difficulty){
       this.$router.push({ path: '/puzzle' })
     }
   }
@@ -178,5 +193,39 @@ export default {
   83% {
     transform: rotate(-4deg);
   }
+}
+.fadeIn{
+  animation: fadeInAnimation 250ms;
+}
+@keyframes fadeInAnimation {
+  from{
+    opacity:0 ;
+  }
+  to{
+    opacity: 1;
+  }
+}
+.mask {
+  position: fixed;
+  z-index: 9;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.7);
+}
+.options{
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  align-items: center;
+  width:80%;
+  height:60%;
+  background: #ececec;
+  border-radius: 14px;
 }
 </style>

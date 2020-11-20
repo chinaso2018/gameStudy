@@ -49,6 +49,7 @@ export default {
   line-height: 18px;
   font-weight: bold;
   text-align: center;
+  box-shadow: 1px 2px #ccc;
 }
 .actionButton.active {
   transform: scale(0.95);

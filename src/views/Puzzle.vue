@@ -23,16 +23,17 @@
       :style="{ height: canvasHeight + 'px', width: canvasWidth + 'px' }"
     />
     <div
-      class="mask fadeIn"
+      class="mask"
+      :class="{ fadeIn: status == 2 || status == 3 }"
       :style="{ height: canvasHeight + 'px', width: canvasWidth + 'px' }"
       v-if="showModal"
     >
       <div v-if="status == 0" class="loading">加载中...</div>
       <div v-if="status == 2" class="loading">游戏结束</div>
       <div v-if="status == 3" class="loading">游戏超时</div>
-      <div v-if="status == 2||status ==3" class="endButtons">
-        <CButton text="首页" @onClick="goBack"/>
-        <CButton text="新游戏" @onClick="newGame"/>
+      <div v-if="status == 2 || status == 3" class="endButtons">
+        <CButton text="首页" @onClick="goBack" />
+        <CButton text="新游戏" @onClick="newGame" />
       </div>
     </div>
   </div>
@@ -42,7 +43,7 @@
 import Game from '@/assets/structure/idiom'
 import CButton from '@/components/CButton'
 export default {
-  components:{CButton},
+  components: { CButton },
   name: 'Puzzle',
   data() {
     return {
@@ -164,7 +165,7 @@ export default {
   align-items: center;
   background-color: rgba(0, 0, 0, 0.7);
 }
-.endButtons{
+.endButtons {
   display: flex;
   flex-direction: row;
   width: 80%;
@@ -176,5 +177,16 @@ export default {
   font-size: 30px;
   font-weight: bold;
   margin-bottom: 30px;
+}
+.fadeIn{
+  animation: fadeInAnimation 250ms;
+}
+@keyframes fadeInAnimation {
+  from{
+    opacity:0 ;
+  }
+  to{
+    opacity: 1;
+  }
 }
 </style>
