@@ -49,7 +49,7 @@ export default {
       this.chooseOption = true
     },
     goPuzzle(difficulty){
-      this.$router.push({ path: '/puzzle' })
+      this.$router.push({ path: '/puzzle?d='+difficulty })
     }
   }
 }
@@ -161,7 +161,7 @@ export default {
   }
 }
 .pushReleaseFrom {
-  animation: pushReleaseFrom 2s 0.5s ease-in-out;
+  animation: pushReleaseFrom 2s 0.2s both ease-in-out;
 }
 @keyframes pushReleaseFrom {
   from {

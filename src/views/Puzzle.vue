@@ -88,7 +88,7 @@ export default {
         canvas: canvasDom,
         canvasHeight: this.canvasHeight,
         canvasWidth: this.canvasWidth,
-        difficulty: 2,
+        difficulty: this.$route.query['d']||2,
         onTimeout: () => {
           this.status = 3
         },

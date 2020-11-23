@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js'
-import { TweenMax, TimelineMax } from 'gsap'
+import { TweenMax, TimelineMax, Expo, Linear } from 'gsap'
 const CARD_WIDTH = 50
 const CARD_HEIGHT = 50
 const CLOCK_WIDTH = 100
@@ -16,7 +16,9 @@ const arrayShuffle = (arr, num = 1) => {
   }
   return arr
 }
-
+function getRandom(min, max) {
+  return min + Math.random() * (max - min)
+}
 class FontCard {
   constructor({ name, x, y, texture, activeTexture, answer, canChange }) {
     this.texture = texture
@@ -143,15 +145,16 @@ class MatchCard {
     this.dragging = true
   }
   onDragEnd() {
-    this.data = null
     this.dragging = false
     this.spirit.alpha = 1
+
     if (this.isMatched) {
       this.spirit.visible = false
     } else {
       TweenMax.to(this.spirit, 0.3, { x: this.position.x, y: this.position.y })
     }
     typeof this.onMatched == 'function' && this.onMatched(this.isMatched)
+    this.data = null
   }
   onDragMove() {
     if (this.dragging) {
@@ -348,8 +351,10 @@ class IdiomGame {
   init() {
     this.resultContainer = new PIXI.Container()
     this.matchContainer = new PIXI.Container()
+    this.starContainer = new PIXI.Container()
     this.stage.addChild(this.resultContainer)
     this.stage.addChild(this.matchContainer)
+    this.stage.addChild(this.starContainer)
     this.resultContainer.y = this.resultStartY
     this.matchContainer.y = this.tableHeight + CLOCK_HEIGHT + 20
     this.resultCards = []
@@ -372,6 +377,31 @@ class IdiomGame {
       this.matchContainer.removeChildren(0)
 
     this.clock && this.clock.destroy()
+    this.starContainer.visible = false
+  }
+  createHearts() {
+    this.starts = []
+    const HEARTS_NUM = 10
+    const SIZE = 50
+    for (let i = 0; i < HEARTS_NUM; i++) {
+      const starSpirit = new PIXI.Sprite(this.spirits.heart)
+      const scale = getRandom(0.1, 0.8)
+      const length = Math.random() * (SIZE / 2 - (SIZE * scale) / 2)
+      const angle = Math.random() * Math.PI * 2
+      starSpirit.scale.set(scale)
+      starSpirit.anchor.set(0.5)
+      const x = Math.cos(angle) * length
+      const y = Math.sin(angle) * length
+      starSpirit.position.set(x, y)
+      starSpirit.alpha = 1
+
+      this.starts.push({
+        from: { x: x, y: y },
+        spirit: starSpirit,
+        to: { x: Math.cos(angle) * length * 6, y: Math.sin(angle) * length * 6 }
+      })
+      this.starContainer.addChild(starSpirit)
+    }
   }
   createShowMap(len) {
     if (this.difficulty == 4) return {}
@@ -392,8 +422,11 @@ class IdiomGame {
       this.createTexture()
       this.pixiApp.loader
         .add('circle', '/images/circle.png')
+        .add('heart', '/images/heart.png')
         .load((loader, resources) => {
           this.spirits.circle = resources.circle.texture
+          this.spirits.heart = resources.heart.texture
+          this.createHearts()
           resovle()
         })
     })
@@ -501,10 +534,16 @@ class IdiomGame {
           return flag
         },
         onMatched: matched => {
-          this.activeResult.active = false
-          if (matched) {
-            this.activeResult.match = true
-            this.tryComplete()
+          if (this.activeResult) {
+            this.activeResult.active = false
+            if (matched) {
+              this.activeResult.match = true
+              //心形动画
+              const bounds = this.activeResult.spirit.getBounds()
+              this.doHeartAnimation(bounds).then(() => {
+                this.tryComplete()
+              })
+            }
           }
         }
       })
@@ -531,6 +570,41 @@ class IdiomGame {
         this.clock.start()
       }
     )
+  }
+  doHeartAnimation(bounds) {
+    this.starContainer.position.set(
+      bounds.x + bounds.width / 2,
+      bounds.y + bounds.height / 2
+    )
+    this.starContainer.visible = true
+    const spirits = this.starts.map(item => item.spirit)
+    return new Promise((resolve, reject) => {
+      TweenMax.set(spirits, {
+        alpha: 1,
+        onComplete: () => {
+          TweenMax.to(spirits, 0.8 + Math.random(), {
+            alpha: 0,
+            x: index => {
+              return this.starts[index].to.x
+            },
+            y: index => {
+              return this.starts[index].to.y
+            },
+            onComplete: () => {
+              TweenMax.set(spirits, {
+                x: index => {
+                  return this.starts[index].from.x
+                },
+                y: index => {
+                  return this.starts[index].from.y
+                },
+                onComplete: resolve
+              })
+            }
+          })
+        }
+      })
+    })
   }
   getFirstPostions(len) {
     const y = 3 * (CARD_HEIGHT + 20)
