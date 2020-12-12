@@ -2,6 +2,7 @@
   <div
     class="actionButton"
     :class="{ active: isActive }"
+    :style="{ backgroundColor: color }"
     @touchstart="pressIn"
     @mousedown="pressIn"
     @mouseup="pressOut"
@@ -16,6 +17,10 @@ export default {
     text: {
       type: String,
       required: true
+    },
+    color: {
+      type: String,
+      default: '#6aa1ec'
     }
   },
   data() {
@@ -41,10 +46,10 @@ export default {
   background-color: #6aa1ec;
   border-radius: 10px;
   filter: drop-shadow(8px 8px 10px rgba(0, 0, 0, 0.3));
-  display:flex;
+  display: flex;
   justify-content: center;
   align-items: center;
-  color:#ffffff;
+  color: #ffffff;
   font-size: 18px;
   line-height: 18px;
   font-weight: bold;
