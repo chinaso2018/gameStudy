@@ -86,6 +86,7 @@ export default {
       this.game && this.game.getTip()
     },
     resetCurrentStage() {},
+    newGame(){},
     goBack() {
       this.$router.go(-1)
     },
@@ -103,10 +104,10 @@ export default {
           this.status = 3
         }
       })
-      console.log(this.game)
       this.game.load().then(() => {
         //this.game.start(this.list[this.index])
         this.status = 2
+        this.game.start()
       })
     }
   }

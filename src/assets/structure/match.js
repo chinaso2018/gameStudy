@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js'
 import { TweenMax, TimelineMax, Expo, Linear } from 'gsap'
 import { text } from '@fortawesome/fontawesome-svg-core'
+import random from 'random'
 let CARD_WIDTH = 50
 let CARD_HEIGHT = 50
 const GAME_COL = 5
@@ -54,6 +55,11 @@ function hitTestRectangle(r1, r2) {
   //`hit` will be either `true` or `false`
   return hit
 }
+/**
+ * 数组打乱
+ * @param {array} arr
+ * @param {number} num
+ */
 const arrayShuffle = (arr, num = 1) => {
   const randomNumber = function() {
     // randomNumber(a,b) 返回的值大于 0 ，则 b 在 a 的前边；
@@ -66,104 +72,53 @@ const arrayShuffle = (arr, num = 1) => {
   }
   return arr
 }
-function getRandom(min, max) {
-  return min + Math.random() * (max - min)
-}
-class FontCard {
-  constructor({ name, x, y, texture, activeTexture, answer, canChange }) {
-    this.texture = texture
-    this.position = { x: x, y: y }
-    this.activeTexture = activeTexture
-    this.spirit = new PIXI.Sprite(texture)
-    this.spirit.width = CARD_WIDTH
-    this.spirit.height = CARD_HEIGHT
-    this.spirit.anchor.set(0.5)
-    this.spirit.position.set(x, y)
-    this._active = false
-    this._name = ''
-    this.name = name
-    this.answer = answer
-    this.canChange = canChange
-    if (!this.canChange) {
-      this.createFont(this.answer)
-    }
-  }
-  get match() {
-    return this.name == this.answer
-  }
-  set match(value) {
-    if (value) {
-      this.name = this.answer
-      this.canChange = false
-    }
-  }
-  createFont(value) {
-    if (this.font) {
-      this.font.text = value
-      return
-    }
-    this.font = new PIXI.Text(value, {
-      fontSize: (CARD_WIDTH / 2) * window.devicePixelRatio,
-      fill: 0x333333,
-      align: 'center'
-    })
-    this.font.anchor.set(0.5)
-    this.font.position.set(0, 0)
-    this.spirit.addChild(this.font)
-  }
-  get name() {
-    return this._name
-  }
-  set name(value) {
-    if (value != this._name && this.canChange) {
-      //如果是清除值并且有子元素
-      if (!value && this.spirit.children.length > 0) {
-        this.spirit.removeChildren(0)
-      }
-      //如果是替换
-      if (value) {
-        this.createFont(value)
-      }
-
-      this._name = value
-    }
-  }
-  get active() {
-    return this._active
-  }
-  set active(value) {
-    if (!this.canChange) return
-    value = !!value
-    if (value != this._active) {
-      this.spirit.texture = value ? this.activeTexture : this.texture
-    }
-    this._active = value
-  }
-  destroy() {
-    this.spirit.destroy()
-  }
-}
 class MatchCard {
-  constructor({ name, x, y, texture, onMatched, onMatching }) {
-    this.texture = texture
+  constructor({
+    letter,
+    row,
+    col,
+    x,
+    y,
+    width,
+    height,
+    texture,
+    selectedTexture,
+    onPointerDown,
+    onPointerUp
+  }) {
     this.position = { x, y }
+    this.row = row
+    this.col = col
+    this.width = width
+    this.height = height
+    this.selectedTexture = selectedTexture
+    this.texture = texture
     this.spirit = new PIXI.Sprite(texture)
-    this.spirit.width = CARD_WIDTH
-    this.spirit.height = CARD_HEIGHT
-    this.spirit.anchor.set(0.5)
+    this.onPointerDownCallBack = onPointerDown
+    this.onPointerUpCallBack = onPointerUp
+    this.spirit.width = width
+    this.spirit.height = height
+    this.spirit.anchor.set(0.5, 0.5)
     this.spirit.position.set(x, y)
-    this.name = name
-    this.createFont(this.name)
+    this.originScale = this.spirit.scale.clone()
+    this.letter = letter
+    this.createFont()
     this.spirit.interactive = true
     this.spirit.buttonMode = true
     this.spirit
-      .on('pointerdown', this.onDragStart.bind(this))
-      .on('pointerup', this.onDragEnd.bind(this))
-      .on('pointerupoutside', this.onDragEnd.bind(this))
-      .on('pointermove', this.onDragMove.bind(this))
+      .on('pointerdown', this.onPointerDown.bind(this))
+      .on('pointerup', this.onPointerUp.bind(this))
+      .on('pointerupoutside', this.onPointerUp.bind(this))
     this.isMatched = false
-    this.onMatched = onMatched
-    this.onMatching = onMatching
+    this._selected = false
+    //this.onMatched = onMatched
+    //this.onMatching = onMatching
+  }
+  get visible() {
+    return this.spirit.visible
+  }
+  set visible(value) {
+    this.spirit.visible = value
   }
   get x() {
     return this.position.x
@@ -179,9 +134,17 @@ class MatchCard {
     this.position.y = value
     this.spirit.y = value
   }
-  createFont(value) {
-    const font = new PIXI.Text(value, {
-      fontSize: (CARD_WIDTH / 2) * window.devicePixelRatio,
+  get selected() {
+    return this._selected
+  }
+  set selected(value) {
+    console.log('setSelected', value)
+    this._selected = value
+    this.spirit.texture = value ? this.selectedTexture : this.texture
+  }
+  createFont() {
+    const font = new PIXI.Text(this.letter, {
+      fontSize: (this.width / 2) * window.devicePixelRatio,
       fill: 0x333333,
       align: 'center'
     })
@@ -189,103 +152,19 @@ class MatchCard {
     font.position.set(0, 0)
     this.spirit.addChild(font)
   }
-  onDragStart(event) {
+  onPointerUp(event) {
+    typeof this.onPointerUpCallBack == 'function' &&
+      this.onPointerUpCallBack(this)
+  }
+  onPointerDown(event) {
+    if (this.selected) return
     this.data = event.data
-    this.spirit.alpha = 0.8
-    this.dragging = true
-  }
-  onDragEnd() {
-    this.dragging = false
-    this.spirit.alpha = 1
-
-    if (this.isMatched) {
-      this.spirit.visible = false
-    } else {
-      TweenMax.to(this.spirit, 0.3, { x: this.position.x, y: this.position.y })
-    }
-    typeof this.onMatched == 'function' && this.onMatched(this.isMatched)
-    this.data = null
-  }
-  onDragMove() {
-    if (this.dragging) {
-      const newPosition = this.data.getLocalPosition(this.spirit.parent)
-      this.spirit.position.set(newPosition.x, newPosition.y)
-      if (typeof this.onMatching == 'function') {
-        this.isMatched = this.onMatching(this.data.global, this.name)
-      }
-    }
+    this.selected = true
+    typeof this.onPointerDownCallBack == 'function' &&
+      this.onPointerDownCallBack(this)
   }
 
   destroy() {
-    this.spirit.destroy()
-  }
-}
-class Clock {
-  /**
-   *
-   * @param {number} time 总计时 单位：秒
-   */
-  constructor({ time, texture1, texture2, x, y, width, height, onFail }) {
-    this.time = time * 1000
-    this.position = { x, y }
-    this.texture1 = texture1
-    this.texture2 = texture2
-    this.onFail = onFail
-    //背景纹理
-    this.spirit = new PIXI.Sprite(texture1)
-    this.spirit.width = width
-    this.spirit.height = height
-    this.spirit.anchor.set(0.5)
-    this.spirit.position.set(x, y)
-    //
-    const timeString = this.getTimeString(this.time)
-    this.text = new PIXI.Text(timeString, {
-      fontSize: (height / 2) * window.devicePixelRatio,
-      fill: 0xffffff,
-      align: 'center'
-    })
-    this.text.anchor.set(0.5)
-    this.text.position.set(0, 0)
-
-    this.spirit.addChild(this.text)
-  }
-  /**
-   *
-   * @param {*} time 单位毫秒
-   */
-  getTimeString(time) {
-    let sec = Math.floor(time / 1000) % 60
-    let min = Math.floor(time / 60000)
-    sec = sec < 10 ? '0' + sec : '' + sec
-    min = min < 10 ? '0' + min : '' + min
-    return min + ':' + sec
-  }
-  updateTime() {
-    this.time -= 500
-    this.text.text = this.getTimeString(this.time)
-    if (this.time < 10 * 1000) {
-      if (this.time % 1000 != 0) {
-        this.spirit.texture = this.texture2
-      } else {
-        this.spirit.texture = this.texture1
-      }
-    }
-    //结束
-    if (this.time == 0) {
-      this.stop()
-      typeof this.onFail == 'function' && this.onFail()
-    }
-  }
-  start() {
-    if (!this.clock) {
-      this.clock = setInterval(this.updateTime.bind(this), 500)
-    }
-  }
-  stop() {
-    this.clock && clearInterval(this.clock) && (this.clock = null)
-  }
-  destroy() {
-    this.stop()
     this.spirit.destroy()
   }
 }
@@ -319,23 +198,6 @@ class MatchGame {
     this.speed = level || 1
     this.spirits = {}
   }
-  // setup() {
-  //   //Initialize the game sprites, set the game `state` to `play`
-  //   //and start the 'gameLoop'
-  // }
-
-  // gameLoop(delta) {
-  //   //Runs the current game `state` in a loop and renders the sprites
-  // }
-
-  // play(delta) {
-  //   //All the game logic goes here
-  // }
-
-  // end() {
-  //   //All the code that should run at the end of the game
-  // }
-
   createLine(num, y = 0) {
     const rlt = []
     const clip = this.canvasWidth / num
@@ -357,17 +219,24 @@ class MatchGame {
     //
     const row = Math.floor(this.canvasHeight / CARD_HEIGHT) * 2
 
+    const getLetter = random.binomial(25, 0.5)
     const rlt = []
     for (let i = 0; i < row; i++) {
       const line = []
       for (let j = 0; j < col; j++) {
-        let index = ((i * row + j) % 5) + 1
+        let randomId = getLetter() + 65
+        let index = (randomId % 5) + 1
         line.push({
+          row: i,
+          col: j,
           x: (j + 0.5) * CARD_WIDTH,
-          y: i * CARD_HEIGHT,
+          y: (i + 0.5) * CARD_HEIGHT,
           width: CARD_WIDTH,
           height: CARD_HEIGHT,
-          texture: this.spirits['match'][`block${index}.png`]
+          texture: this.spirits['match'][`block3.png`],
+          selectedTexture: this.spirits['match'][`block5.png`],
+          letter: String.fromCharCode(randomId),
+          show: true
         })
       }
       rlt.push(line)
@@ -384,15 +253,35 @@ class MatchGame {
     this.createBackground(this.spirits['match']['matchtile.png'])
     this.grids = this.createGrid(GAME_COL)
     this.cardContainer = new PIXI.Container()
-    this.stage.addChild(this.resultContainer)
+    this.cardContainer.position.set(0, this.canvasHeight)
+    this.stage.addChild(this.cardContainer)
     this.cards = []
-    console.log(this.grids)
+    this.timeline = new TimelineMax()
+    this.ticker.add(delta => {
+      this.cardContainer.y -= delta
+      if (this.cards.length > 0) {
+        for (let i = 0; i < this.cards.length; i++) {
+          for (let j = 0; j < this.cards[i].length; j++) {
+            if (
+              this.cards[i][j].visible &&
+              this.cards[i][j].y + (this.cardContainer.y - CARD_HEIGHT * 0.5) <=
+                0
+            ) {
+              this.pixiApp.stop()
+              typeof this.onEnd == 'function' && this.onEnd()
+            }
+          }
+        }
+      }
+    })
   }
   clear() {
-    if (this.cards.length > 0) {
-      this.cards.forEach(item => item.destroy())
+    if (this.cardContainer.children.length > 0) {
+      this.cardContainer.children.forEach(item => destroy())
       this.cards = []
     }
+    this.matchQueue = []
+    this.timeline.clear()
   }
   load() {
     return new Promise((resovle, reject) => {
@@ -416,107 +305,116 @@ class MatchGame {
     )
     this.stage.addChild(backSpirit)
   }
-  getRandomWords() {
-    let randomWords = [
-      '好',
-      '好',
-      '好',
-      '好',
-      '好',
-      '好',
-      '好',
-      '好',
-      '好',
-      '好',
-      '好',
-      '好'
-    ]
-    randomWords = randomWords.slice(0, 12 - this.difficulty)
-    return randomWords
-  }
-  start(level) {
-    if (typeof word !== 'string' || !word) return
+  start(difficulty) {
     this.clear()
-    const rows = this.grids.length
-    const cols = this.grids[0].length
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        let index = ((i * cols + j) % 5) + 1
-        this.cards.push({
-          ...this.grids[i][j]
+    const _this = this
+    for (let i = 0; i < this.grids.length; i++) {
+      this.cards[i] = []
+      for (let j = 0; j < this.grids[i].length && this.grids[i][j].show; j++) {
+        let card = new MatchCard({
+          ...this.grids[i][j],
+          onPointerDown(currentCard) {
+            _this.matchQueue.push(currentCard)
+          },
+          onPointerUp(currentCard) {
+            _this.doMatch()
+          }
         })
+        this.cards[i].push(card)
+        // console.log(card)
+        this.cardContainer.addChild(card.spirit)
       }
     }
   }
-  doHeartAnimation(bounds) {
-    this.starContainer.position.set(
-      bounds.x + bounds.width / 2,
-      bounds.y + bounds.height / 2
-    )
-    this.starContainer.visible = true
-    const spirits = this.starts.map(item => item.spirit)
-    return new Promise((resolve, reject) => {
-      TweenMax.set(spirits, {
-        alpha: 1,
-        onComplete: () => {
-          TweenMax.to(spirits, 0.8 + Math.random(), {
-            alpha: 0,
-            x: index => {
-              return this.starts[index].to.x
-            },
-            y: index => {
-              return this.starts[index].to.y
-            },
-            onComplete: () => {
-              TweenMax.set(spirits, {
-                x: index => {
-                  return this.starts[index].from.x
-                },
-                y: index => {
-                  return this.starts[index].from.y
-                },
-                onComplete: resolve
-              })
-            }
-          })
+  /**
+   * 构建i行j列的动画
+   * @param {*} i
+   * @param {*} j
+   */
+  buildAnimations(i, j) {
+    const animation = []
+    for (let m = i - 1; m >= 0; m--) {
+      //如果它是可见的
+      if (this.cards[m][j].visible) {
+        let flag = false,
+          x = i
+        for (let n = m + 1; n <= i; n++) {
+          if (this.cards[n][j].visible) {
+            x = n
+          }
         }
-      })
-    })
+      }
+    }
   }
-  getFirstPostions(len) {
-    const y = 3 * (CARD_HEIGHT + 20)
-    const centerX = this.canvasWidth / 2
-    const middle = (len - 1) / 2
-    const middleIndex = Math.floor(middle)
-    const rlt = []
-    for (let i = 0; i < middle; i++) {
-      rlt.push({
-        x: centerX - (middle - i) * 5,
-        y: y
-      })
+  doMatch() {
+    while (this.matchQueue.length > 1) {
+      const toMatchItem = this.matchQueue.shift()
+      //如果匹配
+      if (toMatchItem.letter == this.matchQueue[0].letter) {
+        const matchedItem = this.matchQueue.shift()
+        toMatchItem.visible = false
+        matchedItem.visible = false
+        let animations = []
+        console.log(toMatchItem, matchedItem)
+        if (toMatchItem.col != matchedItem.col) {
+          for (let i = toMatchItem.row - 1; i >= 0; i--) {
+            //console.log(this.cards[i][toMatchItem.col])
+            animations.push(
+              TweenMax.to(this.cards[i][toMatchItem.col], 0.2, {
+                y: '+=' + toMatchItem.height
+              })
+            )
+          }
+          for (let i = matchedItem.row - 1; i >= 0; i--) {
+            //console.log(this.cards[i][toMatchItem.col])
+            animations.push(
+              TweenMax.to(this.cards[i][matchedItem.col], 0.2, {
+                y: '+=' + matchedItem.height
+              })
+            )
+          }
+        } else {
+          let maxItem =
+            matchedItem.row > toMatchItem.row ? matchedItem : toMatchItem
+          let minItem =
+            matchedItem.row > toMatchItem.row ? toMatchItem : matchedItem
+          const col = matchedItem.col
+          for (let i = minItem.row - 1; i >= 0; i--) {
+            animations.push(
+              TweenMax.to(this.cards[i][col], 0.2, {
+                y: '+=' + toMatchItem.height * 2
+              })
+            )
+          }
+          for (let i = maxItem.row - 1; i > minItem.row; i--) {
+            animations.push(
+              TweenMax.to(this.cards[i][col], 0.2, {
+                y: '+=' + toMatchItem.height
+              })
+            )
+          }
+        }
+
+        this.timeline.add(animations)
+      } else {
+        toMatchItem.selected = false
+        //如果只剩最后一个，则清掉匹配队列
+        if (this.matchQueue.length == 1) {
+          this.matchQueue[0].selected = false
+          this.matchQueue.shift()
+        }
+      }
     }
-    if (middle % 1 == 0) {
-      rlt.push({
-        x: centerX,
-        y: y
-      })
-    }
-    for (let i = middleIndex + 1; i < len; i++) {
-      rlt.push({
-        x: centerX + (i - middle) * 5,
-        y: y
-      })
-    }
-    return rlt
   }
+
   isComplete() {
-    return this.resultCards.every(item => !item.canChange)
+    //return this.resultCards.every(item => !canChange)
   }
   tryComplete() {
-    if (this.isComplete()) {
-      this.clock.stop()
-      typeof this.onEnd == 'function' && this.onEnd()
-    }
+    // if (this.isComplete()) {
+    //   this.clock.stop()
+    //   typeof this.onEnd == 'function' && this.onEnd()
+    // }
   }
   /**
    * 获取提示
