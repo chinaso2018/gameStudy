@@ -187,6 +187,7 @@ export default {
   justify-content: center;
   align-items: center;
   background-color: rgba(0, 0, 0, 0.7);
+  z-index: 99;
 }
 .endButtons {
   display: flex;

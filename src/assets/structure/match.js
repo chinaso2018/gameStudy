@@ -5,56 +5,7 @@ import random from 'random'
 let CARD_WIDTH = 50
 let CARD_HEIGHT = 50
 const GAME_COL = 5
-/**
- * 矩形和矩形的碰撞检测
- * @param {*} r1
- * @param {*} r2
- */
-function hitTestRectangle(r1, r2) {
-  //Define the variables we'll need to calculate
-  let hit, combinedHalfWidths, combinedHalfHeights, vx, vy
 
-  //hit will determine whether there's a collision
-  hit = false
-
-  //Find the center points of each sprite
-  r1.centerX = r1.x + r1.width / 2
-  r1.centerY = r1.y + r1.height / 2
-  r2.centerX = r2.x + r2.width / 2
-  r2.centerY = r2.y + r2.height / 2
-
-  //Find the half-widths and half-heights of each sprite
-  r1.halfWidth = r1.width / 2
-  r1.halfHeight = r1.height / 2
-  r2.halfWidth = r2.width / 2
-  r2.halfHeight = r2.height / 2
-
-  //Calculate the distance vector between the sprites
-  vx = r1.centerX - r2.centerX
-  vy = r1.centerY - r2.centerY
-
-  //Figure out the combined half-widths and half-heights
-  combinedHalfWidths = r1.halfWidth + r2.halfWidth
-  combinedHalfHeights = r1.halfHeight + r2.halfHeight
-
-  //Check for a collision on the x axis
-  if (Math.abs(vx) < combinedHalfWidths) {
-    //A collision might be occurring. Check for a collision on the y axis
-    if (Math.abs(vy) < combinedHalfHeights) {
-      //There's definitely a collision happening
-      hit = true
-    } else {
-      //There's no collision on the y axis
-      hit = false
-    }
-  } else {
-    //There's no collision on the x axis
-    hit = false
-  }
-
-  //`hit` will be either `true` or `false`
-  return hit
-}
 /**
  * 数组打乱
  * @param {array} arr
@@ -72,7 +23,7 @@ const arrayShuffle = (arr, num = 1) => {
   }
   return arr
 }
-class MatchCard {
+class CardSpirit extends PIXI.Sprite {
   constructor({
     letter,
     row,
@@ -86,61 +37,31 @@ class MatchCard {
     onPointerDown,
     onPointerUp
   }) {
-    this.position = { x, y }
+    super(texture)
+    this.letter = letter
     this.row = row
     this.col = col
+    this.x = x
+    this.y = y
     this.width = width
     this.height = height
-    this.selectedTexture = selectedTexture
-    this.texture = texture
-    this.spirit = new PIXI.Sprite(texture)
-    this.onPointerDownCallBack = onPointerDown
-    this.onPointerUpCallBack = onPointerUp
-    this.spirit.width = width
-    this.spirit.height = height
-    this.spirit.anchor.set(0.5, 0.5)
-    this.spirit.position.set(x, y)
-    this.originScale = this.spirit.scale.clone()
-    this.letter = letter
+    this._originTexture = texture
+    this._selectedTexture = selectedTexture
+    this._selected = false
+    this.anchor.set(0.5, 0.5)
+    this.interactive = true
+    this.buttonMode = true
+    this.callbacks = {}
+    if (typeof onPointerDown == 'function') {
+      this.callbacks['onPointerDown'] = onPointerDown
+    }
+    if (typeof onPointerUp == 'function') {
+      this.callbacks['onPointerUp'] = onPointerUp
+    }
     this.createFont()
-    this.spirit.interactive = true
-    this.spirit.buttonMode = true
-    this.spirit
-      .on('pointerdown', this.onPointerDown.bind(this))
+    this.on('pointerdown', this.onPointerDown.bind(this))
       .on('pointerup', this.onPointerUp.bind(this))
       .on('pointerupoutside', this.onPointerUp.bind(this))
-    this.isMatched = false
-    this._selected = false
-    //this.onMatched = onMatched
-    //this.onMatching = onMatching
-  }
-  get visible() {
-    return this.spirit.visible
-  }
-  set visible(value) {
-    this.spirit.visible = value
-  }
-  get x() {
-    return this.position.x
-  }
-  get y() {
-    return this.position.y
-  }
-  set x(value) {
-    this.position.x = value
-    this.spirit.x = value
-  }
-  set y(value) {
-    this.position.y = value
-    this.spirit.y = value
-  }
-  get selected() {
-    return this._selected
-  }
-  set selected(value) {
-    console.log('setSelected', value)
-    this._selected = value
-    this.spirit.texture = value ? this.selectedTexture : this.texture
   }
   createFont() {
     const font = new PIXI.Text(this.letter, {
@@ -150,24 +71,25 @@ class MatchCard {
     })
     font.anchor.set(0.5)
     font.position.set(0, 0)
-    this.spirit.addChild(font)
+    this.addChild(font)
+  }
+  get selected() {
+    return this._selected
+  }
+  set selected(value) {
+    this._selected = value
+    this.texture = value ? this._selectedTexture : this._originTexture
   }
   onPointerUp(event) {
-    typeof this.onPointerUpCallBack == 'function' &&
-      this.onPointerUpCallBack(this)
+    this.callbacks.onPointerUp && this.callbacks.onPointerUp(this)
   }
   onPointerDown(event) {
     if (this.selected) return
-    this.data = event.data
     this.selected = true
-    typeof this.onPointerDownCallBack == 'function' &&
-      this.onPointerDownCallBack(this)
-  }
-
-  destroy() {
-    this.spirit.destroy()
+    this.callbacks.onPointerDown && this.callbacks.onPointerDown(this)
   }
 }
+
 class MatchGame {
   constructor({
     canvas,
@@ -217,7 +139,7 @@ class MatchGame {
     //设定卡片宽度和高度
     CARD_HEIGHT = CARD_WIDTH = this.canvasWidth / col
     //
-    const row = Math.floor(this.canvasHeight / CARD_HEIGHT) * 2
+    const row = Math.floor(this.canvasHeight / CARD_HEIGHT)
 
     const getLetter = random.binomial(25, 0.5)
     const rlt = []
@@ -258,19 +180,27 @@ class MatchGame {
     this.cards = []
     this.timeline = new TimelineMax()
     this.ticker.add(delta => {
-      this.cardContainer.y -= delta
+      this.cardContainer.y -= delta * 0.5
       if (this.cards.length > 0) {
+        let endFlag = true
         for (let i = 0; i < this.cards.length; i++) {
           for (let j = 0; j < this.cards[i].length; j++) {
-            if (
-              this.cards[i][j].visible &&
-              this.cards[i][j].y + (this.cardContainer.y - CARD_HEIGHT * 0.5) <=
+            if (this.cards[i][j].visible) {
+              endFlag = false
+              if (
+                this.cards[i][j].y +
+                  (this.cardContainer.y - CARD_HEIGHT * 0.5) <=
                 0
-            ) {
-              this.pixiApp.stop()
-              typeof this.onEnd == 'function' && this.onEnd()
+              ) {
+                this.pixiApp.stop()
+                typeof this.onFail == 'function' && this.onFail()
+              }
             }
           }
+        }
+        if (endFlag) {
+          this.pixiApp.stop()
+          typeof this.onEnd == 'function' && this.onEnd()
         }
       }
     })
@@ -288,6 +218,7 @@ class MatchGame {
       this.pixiApp.loader
         .add('match', '/images/match.json')
         .load((loader, resources) => {
+          console.log(resources)
           this.spirits['match'] = resources['match'].textures
           this.setup()
           resovle()
@@ -311,7 +242,7 @@ class MatchGame {
     for (let i = 0; i < this.grids.length; i++) {
       this.cards[i] = []
       for (let j = 0; j < this.grids[i].length && this.grids[i][j].show; j++) {
-        let card = new MatchCard({
+        let card = new CardSpirit({
           ...this.grids[i][j],
           onPointerDown(currentCard) {
             _this.matchQueue.push(currentCard)
@@ -322,7 +253,7 @@ class MatchGame {
         })
         this.cards[i].push(card)
         // console.log(card)
-        this.cardContainer.addChild(card.spirit)
+        this.cardContainer.addChild(card)
       }
     }
   }
