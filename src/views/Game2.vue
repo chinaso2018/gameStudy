@@ -51,7 +51,7 @@
 </template>
 
 <script>
-import Game from '@/assets/structure/match'
+import Game from '@/assets/game/match'
 import CButton from '@/components/CButton'
 export default {
   components: { CButton },

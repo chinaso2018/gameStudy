@@ -40,7 +40,7 @@
 </template>
 
 <script>
-import Game from '@/assets/structure/idiom'
+import Game from '@/assets/game/idiom'
 import CButton from '@/components/CButton'
 export default {
   components: { CButton },
